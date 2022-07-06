@@ -1,10 +1,71 @@
+from django.forms import IntegerField
 from .models import *
+from django.contrib.auth.models import Group 
 from rest_framework import serializers
+from rest_framework.validators import UniqueTogetherValidator
 
-class CustomUserSerializer(serializers.HyperlinkedModelSerializer):
+
+
+def transfer_value_check(value):
+        transfer_value = value.get("transfer_value", -1)
+        comission = value.get("transfer_comission", -1)
+        balance_src = value.get("balance_src")
+        balance_dsc = value.get("balance_dsc")
+        errors = {}
+        if comission < 0 or comission >100:
+            errors ["transfer_comission"] = 'Please, input correct value'
+        #    raise serializers.ValidationError({"transfer_comission":'Please, input not negative value'})
+        
+        if transfer_value < 0:
+            errors ["transfer_value"] = 'Please, input not negative value'
+        #    raise serializers.ValidationError({"transfer_value":'Please, input not negative value'})
+        if balance_dsc.id == balance_src.id:
+            errors ["balance_src"] ='balance_src should differ balance_dsc'
+            errors ["balance_dsc"] ='balance_src should differ balance_dsc'
+
+        if transfer_value > balance_src.balance_value:
+            errors ["transfer_value"] = 'transfer value invalid'
+
+        # дз 1 на балансе откуда списываем деньги, деньги есть в нужном количестве
+        if balance_src.user.is_active ==False: 
+            errors["balance_src"] = 'user was blocked'
+
+        if balance_dsc.user.is_active ==False: 
+            errors["balance_dsc"] = 'user was blocked'
+
+
+        #    errors ["transfer_value"] = 'transfer value invalid'
+        # оба пользователя не заблокированы в моей системе
+        # 
+
+
+        if len(errors)>0:
+            raise serializers.ValidationError(errors)
+
+        
+    
+
+class GroupSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Group
+        fields = ["name"]
+
+class CustomUserSerializer(serializers.ModelSerializer):
+
+    def create(self, validated_data):
+        return super().create(validated_data)
+
+    def save(self, validated_data):
+        user = self.create(validated_data)
+        user.username = user.email
+        user.save()
+        return user
+        
     class Meta:
         model = CustomUser
-        fields = ['username', 'phone', 'email']
+        fields = ['id','first_name', 'last_name', 'midlename', 'password', 'email', 'phone','verify_email','verify_phone', 'groups']
+        read_only_fields = ('id', 'verify_email', 'verify_phone')
+
 
 class BalanceSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
@@ -21,10 +82,20 @@ class Internal_transfer_typeSerializer(serializers.HyperlinkedModelSerializer):
         model = Internal_transfer_type
         fields = "__all__"
 
-class Internal_transferSerializer(serializers.HyperlinkedModelSerializer):
+class Internal_transferSerializer(serializers.ModelSerializer):
+    
+    def save(self, validated_data):
+        balance = self.create(validated_data)
+        balance.save()
+        return balance
+
+   
     class Meta:
+        
         model = Internal_transfer
         fields = "__all__"
+        validators = [transfer_value_check]
+    
 
 class Profile_specialistSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:

@@ -7,6 +7,8 @@ from datetime import datetime
 class CustomUser(User):
     phone = models.CharField(max_length=20)
     midlename = models.CharField(max_length=50, null=True, default=None, blank=True)
+    verify_email = models.BooleanField(default=False, blank=True)
+    verify_phone = models.BooleanField(default=False, blank=True)
 
 class Balance(models.Model):
     user = models.ForeignKey(CustomUser, on_delete=models.RESTRICT)
@@ -77,6 +79,8 @@ class Time_slot(models.Model):
     create_date = models.DateTimeField()
     remove_date = models.DateTimeField(null=True, blank=True, default=None)
     free = models.BooleanField(blank=True, default=False)
+
+    # дз написать проверки для Time_slot и Appointment
 
 class Appointment(models.Model):
     client = models.ForeignKey(CustomUser, on_delete=models.RESTRICT, related_name="appointment_client")
