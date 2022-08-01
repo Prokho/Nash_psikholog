@@ -1,8 +1,12 @@
+from re import U
 from django.forms import IntegerField
 from .models import *
 from django.contrib.auth.models import Group 
 from rest_framework import serializers
 from rest_framework.validators import UniqueTogetherValidator
+import datetime
+from dateutil.relativedelta import relativedelta
+
 
 
 
@@ -32,34 +36,65 @@ def transfer_value_check(value):
 
         if balance_dsc.user.is_active ==False: 
             errors["balance_dsc"] = 'user was blocked'
-
-
         #    errors ["transfer_value"] = 'transfer value invalid'
         # оба пользователя не заблокированы в моей системе
-        # 
+        if len(errors)>0:
+            raise serializers.ValidationError(errors)
 
+def time_slot_check(value):
+        user = value.get("user")
+        date = value.get("date")
+        time = value.get("time")
+        now_date = datetime.datetime.now().date()
+        #list_time_slots = Time_slot.objects.filter(date = date, time = time)
+        
+        errors = {}
+
+        if user.is_active ==False: 
+            errors["user"] = 'user was blocked'
+        
+        if not user.groups.filter(name__in=['specialist', 'manager']).exists():
+            errors["groups"] = 'incorrect role'
+
+        if date < now_date:
+            errors["date"] = 'incorrect date, data should be current date or future date'
+
+        if date > (now_date+relativedelta(months=+3)):
+            errors["date"] = 'incorrect date,data should be not more than 3 months in future'
+
+        if not time.minute %5 == 0:
+            errors["time"] = 'incorrect time, time should be devided by 5'
+
+        #if len(list_time_slots)>0: 
+        #    errors["time"] = 'not unique time'
 
         if len(errors)>0:
             raise serializers.ValidationError(errors)
 
-        
-    
 
 class GroupSerializer(serializers.ModelSerializer):
     class Meta:
         model = Group
-        fields = ["name"]
-
+        fields = ["id", "name"]
+        
+# todo: добавить валидатор который будет проверять емейл на уникальность
+# примеры валидаторов есть на сайте рест фреймворк
 class CustomUserSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
-        return super().create(validated_data)
+        user = super().create(validated_data)
+        user.username = user.email
+        return user
 
     def save(self, validated_data):
+        print(validated_data)
         user = self.create(validated_data)
-        user.username = user.email
         user.save()
+        balance = Balance.objects.create(user=user)
+        balance.save()
         return user
+
+        # при создании пользователя относящегося к группе специалист - создать профайл специалиста и сделать на эту т ему проверку, что создается именно специалист
         
     class Meta:
         model = CustomUser
@@ -67,7 +102,7 @@ class CustomUserSerializer(serializers.ModelSerializer):
         read_only_fields = ('id', 'verify_email', 'verify_phone')
 
 
-class BalanceSerializer(serializers.HyperlinkedModelSerializer):
+class BalanceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Balance
         fields = "__all__"
@@ -88,7 +123,6 @@ class Internal_transferSerializer(serializers.ModelSerializer):
         balance = self.create(validated_data)
         balance.save()
         return balance
-
    
     class Meta:
         
@@ -97,22 +131,22 @@ class Internal_transferSerializer(serializers.ModelSerializer):
         validators = [transfer_value_check]
     
 
-class Profile_specialistSerializer(serializers.HyperlinkedModelSerializer):
+class Profile_specialistSerializer(serializers.ModelSerializer):
     class Meta:
         model = Profile_specialist
         fields = "__all__"
 
-class ServiceSerializer(serializers.HyperlinkedModelSerializer):
+class ServiceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Service
         fields = "__all__"
 
-class Profile_serviceSerializer(serializers.HyperlinkedModelSerializer):
+class Profile_serviceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Profile_service
         fields = "__all__"
 
-class Specialist_documenSerializer(serializers.HyperlinkedModelSerializer):
+class Specialist_documenSerializer(serializers.ModelSerializer):
     class Meta:
         model = Specialist_documen
         fields = "__all__"
@@ -122,17 +156,21 @@ class Specialist_photo_typeSerializer(serializers.HyperlinkedModelSerializer):
         model = Specialist_photo_type
         fields = "__all__"
 
-class Specialist_presentation_photoSerializer(serializers.HyperlinkedModelSerializer):
+class Specialist_presentation_photoSerializer(serializers.ModelSerializer):
     class Meta:
         model = Specialist_presentation_photo
         fields = "__all__"
 
-class Time_slotSerializer(serializers.HyperlinkedModelSerializer):
+class Time_slotSerializer(serializers.ModelSerializer):
     class Meta:
         model = Time_slot
         fields = "__all__"
+        validators = [time_slot_check, UniqueTogetherValidator(
+                queryset=Time_slot.objects.all(),
+                fields=['date', 'time', 'user']
+            )]
 
-class AppointmentSerializer(serializers.HyperlinkedModelSerializer):
+class AppointmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Appointment
         fields = "__all__"
@@ -152,37 +190,37 @@ class Refusal_or_refund_statusSerializer(serializers.HyperlinkedModelSerializer)
         model = Refusal_or_refund_status
         fields = "__all__"
 
-class Refund_to_internal_accountSerializer(serializers.HyperlinkedModelSerializer):
+class Refund_to_internal_accountSerializer(serializers.ModelSerializer):
     class Meta:
         model = Refund_to_internal_account
         fields = "__all__"
 
-class Service_cancellationSerializer(serializers.HyperlinkedModelSerializer):
+class Service_cancellationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Service_cancellation
         fields = "__all__"
 
-class MessageSerializer(serializers.HyperlinkedModelSerializer):
+class MessageSerializer(serializers.ModelSerializer):
     class Meta:
         model = Message
         fields = "__all__"
 
-class Message_attachmentSerializer(serializers.HyperlinkedModelSerializer):
+class Message_attachmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Message_attachment
         fields = "__all__"
 
-class SessionSerializer(serializers.HyperlinkedModelSerializer):
+class SessionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Session
         fields = "__all__"
 
-class Session_feedbackSerializer(serializers.HyperlinkedModelSerializer):
+class Session_feedbackSerializer(serializers.ModelSerializer):
     class Meta:
         model = Session_feedback
         fields = "__all__"
 
-class Removed_usersSerializer(serializers.HyperlinkedModelSerializer):
+class Removed_usersSerializer(serializers.ModelSerializer):
     class Meta:
         model = Removed_users
         fields = "__all__"

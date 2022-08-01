@@ -6,6 +6,9 @@ from rest_framework import viewsets
 #from rest_framework import permissions
 from .migrations import *
 from .serializers import *
+from .forms import *
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
 
 class GroupViewSet(viewsets.ModelViewSet):
     queryset = Group.objects.all()
@@ -86,7 +89,7 @@ class Specialist_photo_typeViewSet(viewsets.ModelViewSet):
 
 class Specialist_presentation_photoViewSet(viewsets.ModelViewSet):
     queryset = Specialist_presentation_photo.objects.all()
-    serializer_class = Specialist_presentation_photo
+    serializer_class = Specialist_presentation_photoSerializer
     http_method_names = ['get', 'post', 'delete']
 
 class Time_slotViewSet(viewsets.ModelViewSet):
@@ -152,3 +155,11 @@ class NotificationViewSet(viewsets.ModelViewSet):
     queryset = Notification.objects.all()
     serializer_class = NotificationSerializer
     http_method_names = ['get']
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def uploadFile(request):
+    form = FormUploadFile(request.POST, request.FILES)
+    if form.is_valid():
+        file = request.FILES["file"]
+        

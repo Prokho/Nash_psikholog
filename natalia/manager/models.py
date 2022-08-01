@@ -74,13 +74,19 @@ class Specialist_presentation_photo(models.Model):
 
 class Time_slot(models.Model):
     user = models.ForeignKey(CustomUser, on_delete=models.RESTRICT)
-    date = models.DateField()
-    time = models.TimeField()
-    create_date = models.DateTimeField()
+    date = models.DateField() # дата возможной записи для потенциальных клиентов
+    time = models.TimeField() # время возможной записи для потенциальных клиентов
+    create_date = models.DateTimeField() # дата и время когда психолог сделал слот доступным
     remove_date = models.DateTimeField(null=True, blank=True, default=None)
-    free = models.BooleanField(blank=True, default=False)
+    free_time = models.BooleanField(blank=True, default=False)
 
-    # дз написать проверки для Time_slot и Appointment
+    # для time_slot:
+    # юзер не заблокирован и имеет роль специалист - для этого нужно запросить список групп и проверить что юзер принадлежит этой группе по соответствующемк ай ди.
+    # ремувинг дейт - пользователь не может сам вносить данные в это поле. Поле заполняется автоматически после удаления тайм слота
+    # дата должна проверяться на корректность - не младше текущей и не старше чем на 3 месяца вперед
+    # минуты должны быть кратны 5-ти
+    # пользователь не может создать несколько записей на одно и то же дату и время
+    # новый тайм слот не пересекается с уже существующим тайм слотом (как с началом, так и концом), таймслот - берем основу на час
 
 class Appointment(models.Model):
     client = models.ForeignKey(CustomUser, on_delete=models.RESTRICT, related_name="appointment_client")
@@ -93,6 +99,14 @@ class Appointment(models.Model):
     description_client = models.TextField(null=True, blank=True, default=None)
     description_specialist = models.TextField(null=True, blank=True, default=None)
     rejection = models.BooleanField(blank=True, default=False)
+
+    # для appointment:
+    # клиент не заблокирован и имеет правильную роль
+    # специалист не заблокирован и имеет правильную роль
+    # time_slot сейчас свободен и принадлежит тому же самому психологу (передается ай ди)
+    # time_slot: пользователь не может создать несколько записей на одно и то же дату и время, должны проверяться дата и время для записи клиента
+    # time_appointment_delet - пользователь не может сам вносить данные в это поле. Поле заполняется автоматически после удаления тайм слота
+    
     
 class User_bank_details(models.Model):
     user = models.ForeignKey(CustomUser, on_delete=models.RESTRICT)
