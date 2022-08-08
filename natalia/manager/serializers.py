@@ -6,6 +6,7 @@ from rest_framework import serializers
 from rest_framework.validators import UniqueTogetherValidator
 import datetime
 from dateutil.relativedelta import relativedelta
+from datetime import datetime, timedelta
 
 
 
@@ -45,8 +46,14 @@ def time_slot_check(value):
         user = value.get("user")
         date = value.get("date")
         time = value.get("time")
-        now_date = datetime.datetime.now().date()
-        #list_time_slots = Time_slot.objects.filter(date = date, time = time)
+        now_date = datetime.now().date()
+        date_1 = value.get("date")
+        time_1 = value.get("time")
+        date_time_1 = datetime.combine(date_1,time_1)
+        dt_prev = date_time_1 - timedelta(hours=1)
+        dt_next = date_time_1 + timedelta(hours=1)
+        print(dt_prev)
+        print(dt_next)
         
         errors = {}
 
@@ -65,8 +72,8 @@ def time_slot_check(value):
         if not time.minute %5 == 0:
             errors["time"] = 'incorrect time, time should be devided by 5'
 
-        #if len(list_time_slots)>0: 
-        #    errors["time"] = 'not unique time'
+        if len(Time_slot.objects.filter(time__gte=dt_prev,time__lt=dt_next))!=0:
+             errors["time"] = 'incorrect time_slot'
 
         if len(errors)>0:
             raise serializers.ValidationError(errors)
