@@ -7,6 +7,8 @@ from rest_framework.validators import UniqueTogetherValidator
 import datetime
 from dateutil.relativedelta import relativedelta
 from datetime import datetime, timedelta
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
 
 
 
@@ -44,16 +46,14 @@ def transfer_value_check(value):
 
 def time_slot_check(value):
         user = value.get("user")
-        date = value.get("date")
-        time = value.get("time")
         now_date = datetime.now().date()
         date_1 = value.get("date")
         time_1 = value.get("time")
         date_time_1 = datetime.combine(date_1,time_1)
         dt_prev = date_time_1 - timedelta(hours=1)
         dt_next = date_time_1 + timedelta(hours=1)
-        print(dt_prev)
-        print(dt_next)
+        time_prev = dt_prev.time()
+        time_next = dt_next.time()
         
         errors = {}
 
@@ -63,20 +63,77 @@ def time_slot_check(value):
         if not user.groups.filter(name__in=['specialist', 'manager']).exists():
             errors["groups"] = 'incorrect role'
 
-        if date < now_date:
+        if date_1 < now_date:
             errors["date"] = 'incorrect date, data should be current date or future date'
 
-        if date > (now_date+relativedelta(months=+3)):
+        if date_1 > (now_date+relativedelta(months=+3)):
             errors["date"] = 'incorrect date,data should be not more than 3 months in future'
 
-        if not time.minute %5 == 0:
+        if not time_1.minute %5 == 0:
             errors["time"] = 'incorrect time, time should be devided by 5'
 
-        if len(Time_slot.objects.filter(time__gte=dt_prev,time__lt=dt_next))!=0:
+        
+        if len(Time_slot.objects.filter(time__gte=time_prev,time__lte=time_next, date=date_1, user=user))!=0:
              errors["time"] = 'incorrect time_slot'
 
         if len(errors)>0:
             raise serializers.ValidationError(errors)
+
+    
+def appointment_check(value):
+        client = value.get("client")
+        specialist = value.get("specialist")
+        time_slot = value.get("time_slot")     
+        dt_prev = time_slot.time - timedelta(hours=1)
+        dt_next = time_slot.time + timedelta(hours=1)
+        
+
+        errors = {}
+
+        if client.is_active ==False: 
+            errors["client"] = 'client was blocked'
+
+        if specialist.is_active ==False: 
+            errors["specialist"] = 'specialist was blocked'
+
+        if not client.groups.filter(name__in=['client']).exists():
+            errors["client"] = 'incorrect role'
+
+        if not specialist.groups.filter(name__in=['specialist']).exists():
+            errors["specialist"] = 'incorrect role'
+
+# time_slot сейчас свободен и принадлежит тому же самому психологу (передается ай ди)
+        if time_slot.user.id != specialist.id:
+            errors["time_slot"] = 'time_slot is held to another specialist'
+        elif not time_slot.free_time:
+            errors["time_slot"] = 'time_slot is busy'
+
+
+# time_slot: пользователь не может создать несколько записей на одно и то же дату и время,
+#  должны проверяться дата и время для записи клиента
+# найти все записи клиента, среди них найти те записи, которые пересекаются с текущим тайм слотом
+# из тайм слота нужно вытащить дату и время и на их основе считать пред и след час
+
+        if len(Appointment.objects.filter(time_slot:))!=0:
+             errors["time_appointment_create"] = 'incorrect time_appointment' 
+
+
+        if len(errors)>0:
+            raise serializers.ValidationError(errors)
+
+
+def validate_email_(value):    #!!!
+        email = value.get('email')
+
+        errors = {}
+
+        if len(User.email.filter(email=email)) !=0:
+            errors["user_email"] = 'email is not unique' 
+
+        if len(errors)>0:
+            raise serializers.ValidationError(errors)    
+
+
 
 
 class GroupSerializer(serializers.ModelSerializer):
@@ -84,7 +141,7 @@ class GroupSerializer(serializers.ModelSerializer):
         model = Group
         fields = ["id", "name"]
         
-# todo: добавить валидатор который будет проверять емейл на уникальность
+# todo: добавить валидатор  который будет проверять емейл пользователя на уникальность
 # примеры валидаторов есть на сайте рест фреймворк
 class CustomUserSerializer(serializers.ModelSerializer):
 
@@ -107,6 +164,8 @@ class CustomUserSerializer(serializers.ModelSerializer):
         model = CustomUser
         fields = ['id','first_name', 'last_name', 'midlename', 'password', 'email', 'phone','verify_email','verify_phone', 'groups']
         read_only_fields = ('id', 'verify_email', 'verify_phone')
+        validators = [validate_email_] #!!!
+
 
 
 class BalanceSerializer(serializers.ModelSerializer):
@@ -157,6 +216,7 @@ class Specialist_documenSerializer(serializers.ModelSerializer):
     class Meta:
         model = Specialist_documen
         fields = "__all__"
+# проверка того, что файл есть на сервере
 
 class Specialist_photo_typeSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
@@ -167,6 +227,7 @@ class Specialist_presentation_photoSerializer(serializers.ModelSerializer):
     class Meta:
         model = Specialist_presentation_photo
         fields = "__all__"
+# проверка того, что файл есть на сервере
 
 class Time_slotSerializer(serializers.ModelSerializer):
     class Meta:
@@ -181,6 +242,9 @@ class AppointmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Appointment
         fields = "__all__"
+        validators = [appointment_check]
+        
+        
 
 class User_bank_detailsSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:

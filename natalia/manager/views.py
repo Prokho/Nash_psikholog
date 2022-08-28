@@ -1,4 +1,4 @@
-from django.http import HttpResponse, JsonResponse
+from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import render
 
 # Create your views here.
@@ -9,6 +9,9 @@ from .serializers import *
 from .forms import *
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
+from natalia.settings import BASE_DIR, UPLOAD_FILE_DIR
+import os
+import uuid
 
 class GroupViewSet(viewsets.ModelViewSet):
     queryset = Group.objects.all()
@@ -156,10 +159,19 @@ class NotificationViewSet(viewsets.ModelViewSet):
     serializer_class = NotificationSerializer
     http_method_names = ['get']
 
-@csrf_exempt
-@require_http_methods(["POST"])
+@csrf_exempt # декоратор, который отвечает за отмену проверки csrf токен
+@require_http_methods(["POST"]) # декоратор, который отвечает за требование получения метода POST, то есть функция запуститься при получении запроса POST
 def uploadFile(request):
     form = FormUploadFile(request.POST, request.FILES)
     if form.is_valid():
         file = request.FILES["file"]
+        random_name = uuid.uuid4()
+        filename, file_extension = os.path.splitext(file.name)
+        new_name = f"{random_name}{file_extension}"
+        with open(os.path.join(UPLOAD_FILE_DIR, new_name), "wb+") as f:
+            for chunk in file.chunks():
+                f.write(chunk)
+
+        return JsonResponse({'file': new_name},status=200)
+    return HttpResponseBadRequest()
         
